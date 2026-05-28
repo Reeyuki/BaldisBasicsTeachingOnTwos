@@ -159,23 +159,22 @@
 
   <script>
     (function () {
-      var BASE = "https://raw.githubusercontent.com/reeyuki/BaldisBasicsTeachingOnTwosPort/main/Build/";
+      var BASE = "https://cdn.jsdelivr.net/gh/reeyuki/BaldisBasicsTeachingOnTwos@main/Build/";
 
       var DATA_CHUNKS = [
         BASE + "BaldisBasicsTeachingOnTwos.data00.unityweb",
         BASE + "BaldisBasicsTeachingOnTwos.data01.unityweb",
         BASE + "BaldisBasicsTeachingOnTwos.data02.unityweb",
-        BASE + "BaldisBasicsTeachingOnTwos.data03.unityweb",
+        BASE + "BaldisBasicsTeachingOnTwos.data03.unityweb"
       ];
 
       var WASM_CODE_CHUNKS = [
         BASE + "BaldisBasicsTeachingOnTwos.wasm.code00.unityweb",
         BASE + "BaldisBasicsTeachingOnTwos.wasm.code01.unityweb",
-        BASE + "BaldisBasicsTeachingOnTwos.wasm.code02.unityweb",
+        BASE + "BaldisBasicsTeachingOnTwos.wasm.code02.unityweb"
       ];
 
-      var WASM_FRAMEWORK_URL =
-        BASE + "BaldisBasicsTeachingOnTwos.wasm.framework.unityweb";
+      var WASM_FRAMEWORK_URL = BASE + "BaldisBasicsTeachingOnTwos.wasm.framework.unityweb";
       var UNITY_LOADER_URL = BASE + "UnityLoader.js";
 
       var overlay = document.getElementById("loading-overlay");
@@ -193,21 +192,18 @@
         var total = urls.length;
         var results = new Array(total);
         var done = 0;
+
         return new Promise(function (resolve, reject) {
           urls.forEach(function (url, i) {
             fetch(url)
               .then(function (r) {
-                if (!r.ok)
-                  throw new Error("HTTP " + r.status + " fetching " + url);
+                if (!r.ok) throw new Error("HTTP " + r.status + " fetching " + url);
                 return r.arrayBuffer();
               })
               .then(function (buf) {
                 results[i] = buf;
                 done++;
-                setProgress(
-                  startPct + (done / total) * (endPct - startPct),
-                  phaseLabel,
-                );
+                setProgress(startPct + (done / total) * (endPct - startPct), phaseLabel);
                 if (done === total) resolve(results);
               })
               .catch(reject);
@@ -222,10 +218,12 @@
         });
         var out = new Uint8Array(total);
         var offset = 0;
+
         buffers.forEach(function (b) {
           out.set(new Uint8Array(b), offset);
           offset += b.byteLength;
         });
+
         return out.buffer;
       }
 
@@ -246,6 +244,7 @@
 
       function installXHRIntercept() {
         var OrigXHR = window.XMLHttpRequest;
+
         function PatchedXHR() {
           var xhr = new OrigXHR();
           var self = this;
@@ -254,17 +253,13 @@
           self.open = function (method, url) {
             var resolved = String(url);
             for (var key in interceptMap) {
-              if (
-                resolved.indexOf(key) !== -1 ||
-                key.indexOf(resolved) !== -1
-              ) {
+              if (resolved.indexOf(key) !== -1 || key.indexOf(resolved) !== -1) {
                 intercepted = key;
                 break;
               }
             }
-            if (!intercepted) {
-              xhr.open.apply(xhr, arguments);
-            }
+
+            if (!intercepted) xhr.open.apply(xhr, arguments);
           };
 
           var proxyProps = [
@@ -274,8 +269,9 @@
             "onreadystatechange",
             "responseType",
             "timeout",
-            "withCredentials",
+            "withCredentials"
           ];
+
           proxyProps.forEach(function (p) {
             Object.defineProperty(self, p, {
               get: function () {
@@ -283,7 +279,7 @@
               },
               set: function (v) {
                 xhr[p] = v;
-              },
+              }
             });
           });
 
@@ -292,63 +288,63 @@
             "status",
             "statusText",
             "response",
-            "responseText",
+            "responseText"
           ].forEach(function (p) {
             Object.defineProperty(self, p, {
               get: function () {
                 return xhr[p];
-              },
+              }
             });
           });
 
           self.setRequestHeader = function () {
             if (!intercepted) xhr.setRequestHeader.apply(xhr, arguments);
           };
+
           self.send = function () {
             if (!intercepted) {
               xhr.send.apply(xhr, arguments);
               return;
             }
+
             var buf = interceptMap[intercepted];
             var rt = xhr.responseType;
+
             setTimeout(function () {
               Object.defineProperty(xhr, "readyState", {
                 get: function () {
                   return 4;
                 },
-                configurable: true,
+                configurable: true
               });
+
               Object.defineProperty(xhr, "status", {
                 get: function () {
                   return 200;
                 },
-                configurable: true,
+                configurable: true
               });
-              if (rt === "arraybuffer") {
-                Object.defineProperty(xhr, "response", {
-                  get: function () {
-                    return buf;
-                  },
-                  configurable: true,
-                });
-              } else {
-                Object.defineProperty(xhr, "response", {
-                  get: function () {
-                    return new Uint8Array(buf);
-                  },
-                  configurable: true,
-                });
-              }
+
+              Object.defineProperty(xhr, "response", {
+                get: function () {
+                  return rt === "arraybuffer" ? buf : new Uint8Array(buf);
+                },
+                configurable: true
+              });
+
               if (xhr.onload) xhr.onload({ target: xhr });
             }, 0);
           };
+
           self.abort = function () {
             if (!intercepted) xhr.abort();
           };
+
           self.addEventListener = function (evt, fn) {
             xhr.addEventListener(evt, fn);
           };
         }
+
         PatchedXHR.prototype = OrigXHR.prototype;
         window.XMLHttpRequest = PatchedXHR;
       }
@@ -362,23 +358,23 @@
         })
         .then(function (dataBuffers) {
           var dataBuf = concatBuffers(dataBuffers);
+
           setProgress(50, "Fetching WASM code");
-          return fetchChunks(
-            WASM_CODE_CHUNKS,
-            "Fetching WASM code",
-            50,
-            82,
-          ).then(function (wasmBuffers) {
-            var wasmBuf = concatBuffers(wasmBuffers);
-            setProgress(82, "Fetching framework");
-            return fetch(WASM_FRAMEWORK_URL)
-              .then(function (r) {
-                return r.arrayBuffer();
-              })
-              .then(function (fwBuf) {
-                return { dataBuf: dataBuf, wasmBuf: wasmBuf, fwBuf: fwBuf };
-              });
-          });
+
+          return fetchChunks(WASM_CODE_CHUNKS, "Fetching WASM code", 50, 82)
+            .then(function (wasmBuffers) {
+              var wasmBuf = concatBuffers(wasmBuffers);
+
+              setProgress(82, "Fetching framework");
+
+              return fetch(WASM_FRAMEWORK_URL)
+                .then(function (r) {
+                  return r.arrayBuffer();
+                })
+                .then(function (fwBuf) {
+                  return { dataBuf: dataBuf, wasmBuf: wasmBuf, fwBuf: fwBuf };
+                });
+            });
         })
         .then(function (bufs) {
           setProgress(90, "Initializing");
@@ -406,11 +402,11 @@
             backgroundColor: "#000000",
             developmentBuild: false,
             multithreading: false,
-            unityVersion: "2019.4.21f1",
+            unityVersion: "2019.4.21f1"
           };
 
           var jsonBlob = URL.createObjectURL(
-            new Blob([JSON.stringify(config)], { type: "application/json" }),
+            new Blob([JSON.stringify(config)], { type: "application/json" })
           );
 
           window.__unityInstance = UnityLoader.instantiate(
@@ -424,8 +420,8 @@
                     overlay.classList.add("hidden");
                   }, 400);
                 }
-              },
-            },
+              }
+            }
           );
         })
         .catch(function (err) {
@@ -436,15 +432,15 @@
 
       window.toggleFullscreen = function () {
         var el = document.getElementById("unityContainer");
+
         if (!document.fullscreenElement) {
           el.requestFullscreen && el.requestFullscreen();
         } else {
           document.exitFullscreen && document.exitFullscreen();
         }
+
         if (window.__unityInstance && window.__unityInstance.SetFullscreen) {
-          window.__unityInstance.SetFullscreen(
-            document.fullscreenElement ? 0 : 1,
-          );
+          window.__unityInstance.SetFullscreen(document.fullscreenElement ? 0 : 1);
         }
       };
     })();
